@@ -180,6 +180,7 @@ class Game():
         self.canBlackStillCastleLong = True
         
         self.hittedFigure = None
+        self.enPassantHittablePawn = None
     def tryMove(self, piece, targetCoordinate):
         print("WHOS TURN IS IT:")
         print(self.whosTurnIsIt)
@@ -191,11 +192,13 @@ class Game():
     
     def move(self, piece, targetCoordinate):
         self.completeCastle(piece, targetCoordinate)
-        piece.currentCoordinate = targetCoordinate
         self.whosTurnIsIt = getOpponentColor(self.whosTurnIsIt)
         self.hittedFigure = self.hitFigure(piece, targetCoordinate)
         self.pawnPromotion(piece, targetCoordinate)
-        self.castlingRight(piece)
+        self.updateCastlingRight(piece)
+        self.enPassantHit(piece, targetCoordinate)
+        self.updateEnPassantHittablePawn(piece, targetCoordinate)
+        piece.currentCoordinate = targetCoordinate
 
     def isInCheck (self, color):
         for piece in self.pieces:
@@ -240,7 +243,7 @@ class Game():
                 return True
         return False
     
-    def castlingRight(self, piece):
+    def updateCastlingRight(self, piece):
         if(isinstance(piece,wKing)):
             self.canWhiteStillCastleShort = False
             self.canWhiteStillCastleLong = False
@@ -257,22 +260,35 @@ class Game():
                 self.canWhiteStillCastleShort = False
             elif piece.currentCoordinate.y == 1:
                 self.canWhiteStillCastleLong = False             
+    
+    def updateEnPassantHittablePawn(self, piece, targetCoordinate):
+        print("UpdateenPassant")
+        print(piece)
+        if ( not isinstance(piece, Pawn)):
+            print("is not a pawn=?")
+            self.enPassantHittablePawn = None
+            return
+        elif piece.isDoublePawnMove(targetCoordinate, self):
+            self.enPassantHittablePawn = piece
+            print("Setting enpassant hittable pawn:")
+            print(self.enPassantHittablePawn.currentCoordinate.name())
+            return
+ 
+        self.enPassantHittablePawn = None
             
+    def enPassantHit(self, piece, targetCoordinate):
+         if ( not isinstance(piece, Pawn)):
+             return
+         if piece.isEnPassantMove(targetCoordinate, self):
+             self.pieces.remove(self.enPassantHittablePawn)
+             self.enPassantHittablePawn = None
     def completeCastle(self, piece, targetCoordinate):
-        print("Complete castle")
         if isinstance(piece, King):
-            print("Found King")
             if piece.isCastle(targetCoordinate, self):
-                print("Targetcoordinate when castling")
-                print(targetCoordinate.y)
                 if(targetCoordinate.y == 6 and piece.team_color == Color.white):
                     rook = game.getPiece(Coordinate(0,7), Color.white)
-                    print("update Rook. before:")
-                    print(rook.currentCoordinate.name())
                     rook.currentCoordinate = Coordinate(0,5)
                     rook.rect.center = board.getPixPosition(rook.currentCoordinate)
-                    print("after:")
-                    print(rook.currentCoordinate.name())
                 if(targetCoordinate.y == 6 and piece.team_color == Color.black):
                     rook = game.getPiece(Coordinate(7,7), Color.black)
                     rook.currentCoordinate = Coordinate(7,5)
@@ -311,7 +327,7 @@ class Pawn(Piece):
     def __init__(self, startPosition, board):
         super().__init__(startPosition, board)
     def isValidMovePattern(self, coord, game):    
-        if self.isDoublePawnMove(coord, game) or self.isSinglePawnMove(coord, game):
+        if self.isDoublePawnMove(coord, game) or self.isSinglePawnMove(coord, game) or self.isEnPassantMove(coord, game):
             print("Legal pawn move: from ")
             print(self.currentCoordinate.name())
             print("to")
@@ -343,10 +359,23 @@ class Pawn(Piece):
             return True
         elif abs(move_y) == 1:
             if(game.getPiece(coord, getOpponentColor(self.team_color))):
-               return True    
+                return True    
         return False
-            
+    def isEnPassantMove(self, coord, game):
+        move_x = (coord.x - self.currentCoordinate.x) 
+        move_y = (coord.y - self.currentCoordinate.y) 
+        if int(move_x) != int(self.pawnMoveDirection()):
+            return False
+        if abs(move_y) != 1:
+            return False
+       
+        pawn = game.getPiece(Coordinate(self.currentCoordinate.x, coord.y))
 
+        if pawn and pawn is game.enPassantHittablePawn:
+            return True
+                
+        return False
+        
 class King(Piece):
     def __init__(self, startPosition, board):
         super().__init__(startPosition, board)
